@@ -43,7 +43,7 @@ SELECT
   campaign_id,
   SUM(sessions) AS total_sessions,
   SUM(sessions) - SUM(engagements) AS bounced_traffic,
-  SUM(engagements) AS non_bounce_traffic,
+  SUM(engagements) AS non_bounced_traffic,
   SUM(total_revenue) AS total_revenue,
   SUM(total_purchases) AS total_purchases
 FROM derivative_cte
