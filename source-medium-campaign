@@ -12,6 +12,10 @@ WITH base_events AS (
       '/'
     ) AS event_page_path,
     
+    -- Extract Data Layer parameters if available
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_type') AS dl_page_type,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_category') AS dl_page_category,
+    
     session_traffic_source_last_click.manual_campaign.source AS source,
     session_traffic_source_last_click.manual_campaign.medium AS medium,
     session_traffic_source_last_click.manual_campaign.campaign_name AS campaign,
@@ -26,7 +30,10 @@ WITH base_events AS (
 session_landing_pages AS (
   SELECT
     session_id,
-    ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_page
+    ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
+    -- Grab Data Layer parameters specifically from the FIRST event (Landing Page entry)
+    ARRAY_AGG(dl_page_type ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_dl_page_type,
+    ARRAY_AGG(dl_page_category ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_dl_page_category
   FROM base_events
   GROUP BY 1
 ),
@@ -35,12 +42,15 @@ session_metrics AS (
   SELECT
     e.session_id,
     l.landing_page,
+    l.landing_dl_page_type,
+    l.landing_dl_page_category,
     
     ANY_VALUE(e.source) AS source,
     ANY_VALUE(e.medium) AS medium,
     ANY_VALUE(e.campaign) AS campaign,
     ANY_VALUE(e.campaign_id) AS campaign_id,
     
+    -- Action flags on landing page
     LOGICAL_OR(e.event_name = 'select_item' AND e.event_page_path = l.landing_page) AS had_select_item_on_landing,
     LOGICAL_OR(e.event_name IN ('add_to_cart', 'add_to_wishlist') AND e.event_page_path = l.landing_page) AS had_pdp_action_on_landing,
     LOGICAL_OR(e.event_name IN ('begin_checkout', 'purchase') AND e.event_page_path = l.landing_page) AS had_checkout_action_on_landing,
@@ -52,7 +62,7 @@ session_metrics AS (
 
   FROM base_events e
   JOIN session_landing_pages l ON e.session_id = l.session_id
-  GROUP BY 1, 2
+  GROUP BY 1, 2, 3, 4
 ),
 
 page_classified_sessions AS (
@@ -67,17 +77,33 @@ page_classified_sessions AS (
     purchases,
     revenue,
     
-    CASE 
-      WHEN landing_page LIKE '%/product/%' OR had_pdp_action_on_landing THEN 'PDP (Product Page)'
-      WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
-      WHEN landing_page LIKE '%/checkout%' OR landing_page LIKE '%/cart%' OR had_checkout_action_on_landing THEN 'Checkout / Cart'
-      WHEN landing_page = '/' THEN 'Homepage'
-      ELSE 'Other / Info Page'
-    END AS page_type
+    -- 1. PAGE TYPE: Prefer Data Layer value; fallback to CASE statement rules
+    COALESCE(
+      landing_dl_page_type,
+      CASE 
+        WHEN landing_page LIKE '%/product/%' OR had_pdp_action_on_landing THEN 'PDP (Product Page)'
+        WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
+        WHEN landing_page LIKE '%/checkout%' OR landing_page LIKE '%/cart%' OR had_checkout_action_on_landing THEN 'Checkout / Cart'
+        WHEN landing_page = '/' THEN 'Homepage'
+        ELSE 'Other / Info Page'
+      END
+    ) AS page_type,
+
+    -- 2. PAGE CATEGORY: Prefer Data Layer value; fallback to general groupings
+    COALESCE(
+      landing_dl_page_category,
+      CASE 
+        WHEN landing_page LIKE '%/product/%' OR landing_page LIKE '%/shop%' THEN 'E-Commerce'
+        WHEN landing_page = '/' THEN 'Brand Entry'
+        ELSE 'General Info'
+      END
+    ) AS page_category
+
   FROM session_metrics
 )
 
 SELECT
+  page_category,
   page_type,
   landing_page,
   COALESCE(source, '(direct)') AS source,
@@ -94,4 +120,4 @@ SELECT
   SUM(revenue) AS total_revenue
 
 FROM page_classified_sessions
-GROUP BY 1, 2, 3, 4, 5, 6;
+GROUP BY 1, 2, 3, 4, 5, 6, 7;
