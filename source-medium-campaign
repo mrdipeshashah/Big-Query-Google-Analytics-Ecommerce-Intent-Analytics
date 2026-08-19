@@ -4,10 +4,21 @@ WITH base_events AS (
     event_name,
     event_timestamp,
     
+    -- Normalize page paths (strips trailing slashes from URLs like '/shop/' to '/shop', preserving root '/')
     COALESCE(
-      REGEXP_EXTRACT(
-        (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
-        r'https?://[^/]+([^?#]*)'
+      IF(
+        REGEXP_EXTRACT(
+          (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
+          r'https?://[^/]+([^?#]*)'
+        ) = '/',
+        '/',
+        RTRIM(
+          REGEXP_EXTRACT(
+            (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
+            r'https?://[^/]+([^?#]*)'
+          ),
+          '/'
+        )
       ),
       '/'
     ) AS event_page_path,
@@ -31,7 +42,6 @@ session_landing_pages AS (
   SELECT
     session_id,
     ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
-    -- Grab Data Layer parameters specifically from the FIRST event (Landing Page entry)
     ARRAY_AGG(dl_page_type ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_dl_page_type,
     ARRAY_AGG(dl_page_category ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_dl_page_category
   FROM base_events
@@ -50,11 +60,12 @@ session_metrics AS (
     ANY_VALUE(e.campaign) AS campaign,
     ANY_VALUE(e.campaign_id) AS campaign_id,
     
-    -- Action flags on landing page
+    -- Actions fired ON THE LANDING PAGE itself
     LOGICAL_OR(e.event_name = 'select_item' AND e.event_page_path = l.landing_page) AS had_select_item_on_landing,
     LOGICAL_OR(e.event_name IN ('add_to_cart', 'add_to_wishlist') AND e.event_page_path = l.landing_page) AS had_pdp_action_on_landing,
     LOGICAL_OR(e.event_name IN ('begin_checkout', 'purchase') AND e.event_page_path = l.landing_page) AS had_checkout_action_on_landing,
     
+    -- Engagement flag on landing page
     LOGICAL_OR(e.event_name IN ('select_item', 'add_to_cart', 'add_to_wishlist', 'begin_checkout') AND e.event_page_path = l.landing_page) AS is_page_engaged,
     
     COUNTIF(e.event_name = 'purchase') AS purchases,
@@ -77,7 +88,7 @@ page_classified_sessions AS (
     purchases,
     revenue,
     
-    -- 1. PAGE TYPE: Prefer Data Layer value; fallback to CASE statement rules
+    -- 1. PAGE TYPE: Prefer Data Layer value; fallback to SQL logic
     COALESCE(
       landing_dl_page_type,
       CASE 
@@ -89,12 +100,13 @@ page_classified_sessions AS (
       END
     ) AS page_type,
 
-    -- 2. PAGE CATEGORY: Prefer Data Layer value; fallback to general groupings
+    -- 2. PAGE CATEGORY: Prefer Data Layer value; fallback to Paid vs Organic Brand split logic
     COALESCE(
       landing_dl_page_category,
       CASE 
-        WHEN landing_page LIKE '%/product/%' OR landing_page LIKE '%/shop%' THEN 'E-Commerce'
-        WHEN landing_page = '/' THEN 'Brand Entry'
+        WHEN landing_page = '/' AND LOWER(medium) IN ('cpc', 'paidsocial', 'paid', 'ppc', 'display', 'meta', 'social_paid') THEN 'Paid Brand'
+        WHEN landing_page = '/' THEN 'Organic Brand'
+        WHEN landing_page LIKE '%/product/%' OR landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' THEN 'E-Commerce'
         ELSE 'General Info'
       END
     ) AS page_category
@@ -111,7 +123,7 @@ SELECT
   COALESCE(campaign, '(not set)') AS campaign,
   campaign_id,
   
-  -- Raw Counts Only
+  -- Raw Aggregations for Looker Studio
   COUNT(DISTINCT session_id) AS total_sessions,
   COUNT(DISTINCT CASE WHEN is_page_engaged THEN session_id END) AS engaged_sessions,
   COUNT(DISTINCT CASE WHEN NOT is_page_engaged OR is_page_engaged IS NULL THEN session_id END) AS bounced_sessions,
@@ -120,4 +132,5 @@ SELECT
   SUM(revenue) AS total_revenue
 
 FROM page_classified_sessions
-GROUP BY 1, 2, 3, 4, 5, 6, 7;
+GROUP BY 1, 2, 3, 4, 5, 6, 7
+ORDER BY total_revenue DESC;
