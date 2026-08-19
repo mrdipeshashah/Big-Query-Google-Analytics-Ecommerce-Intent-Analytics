@@ -1,0 +1,143 @@
+WITH base_events AS (
+  SELECT
+    -- Add event_date for daily breakdown
+    PARSE_DATE('%Y%m%d', event_date) AS event_date,
+    CONCAT(user_pseudo_id, '_', (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id')) AS session_id,
+    event_name,
+    event_timestamp,
+    
+    -- Normalize page paths (strips trailing slashes, preserving root '/')
+    COALESCE(
+      IF(
+        REGEXP_EXTRACT(
+          (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
+          r'https?://[^/]+([^?#]*)'
+        ) = '/',
+        '/',
+        RTRIM(
+          REGEXP_EXTRACT(
+            (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
+            r'https?://[^/]+([^?#]*)'
+          ),
+          '/'
+        )
+      ),
+      '/'
+    ) AS event_page_path,
+    
+    -- Extract Data Layer parameters if available
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_type') AS dl_page_type,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_category') AS dl_page_category,
+    
+    session_traffic_source_last_click.manual_campaign.source AS source,
+    session_traffic_source_last_click.manual_campaign.medium AS medium,
+    session_traffic_source_last_click.manual_campaign.campaign_name AS campaign,
+    session_traffic_source_last_click.manual_campaign.campaign_id AS campaign_id,
+    
+    ecommerce.purchase_revenue
+  FROM `mrdipeshashah.analytics_343520795.events_*`
+  WHERE (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') IS NOT NULL
+    AND _TABLE_SUFFIX BETWEEN FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)) 
+                          AND FORMAT_DATE('%Y%m%d', CURRENT_DATE())
+),
+
+session_landing_pages AS (
+  SELECT
+    session_id,
+    ARRAY_AGG(event_date ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_date,
+    ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
+    ARRAY_AGG(dl_page_type ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_dl_page_type,
+    ARRAY_AGG(dl_page_category ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS landing_dl_page_category
+  FROM base_events
+  GROUP BY 1
+),
+
+session_metrics AS (
+  SELECT
+    e.session_id,
+    l.session_date AS event_date,
+    l.landing_page,
+    l.landing_dl_page_type,
+    l.landing_dl_page_category,
+    
+    ANY_VALUE(e.source) AS source,
+    ANY_VALUE(e.medium) AS medium,
+    ANY_VALUE(e.campaign) AS campaign,
+    ANY_VALUE(e.campaign_id) AS campaign_id,
+    
+    -- Actions fired ON THE LANDING PAGE itself
+    LOGICAL_OR(e.event_name = 'select_item' AND e.event_page_path = l.landing_page) AS had_select_item_on_landing,
+    LOGICAL_OR(e.event_name IN ('add_to_cart', 'add_to_wishlist') AND e.event_page_path = l.landing_page) AS had_pdp_action_on_landing,
+    LOGICAL_OR(e.event_name IN ('begin_checkout', 'purchase') AND e.event_page_path = l.landing_page) AS had_checkout_action_on_landing,
+    
+    -- Engagement flag on landing page
+    LOGICAL_OR(e.event_name IN ('select_item', 'add_to_cart', 'add_to_wishlist', 'begin_checkout') AND e.event_page_path = l.landing_page) AS is_page_engaged,
+    
+    COUNTIF(e.event_name = 'purchase') AS purchases,
+    SUM(IF(e.event_name = 'purchase', e.purchase_revenue, 0)) AS revenue
+
+  FROM base_events e
+  JOIN session_landing_pages l ON e.session_id = l.session_id
+  GROUP BY 1, 2, 3, 4, 5
+),
+
+page_classified_sessions AS (
+  SELECT
+    session_id,
+    event_date,
+    landing_page,
+    source,
+    medium,
+    campaign,
+    campaign_id,
+    is_page_engaged,
+    purchases,
+    revenue,
+    
+    -- Page Type Logic
+    COALESCE(
+      landing_dl_page_type,
+      CASE 
+        WHEN landing_page LIKE '%/product/%' OR had_pdp_action_on_landing THEN 'PDP (Product Page)'
+        WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
+        WHEN landing_page LIKE '%/checkout%' OR landing_page LIKE '%/cart%' OR had_checkout_action_on_landing THEN 'Checkout / Cart'
+        WHEN landing_page = '/' THEN 'Homepage'
+        ELSE 'Other / Info Page'
+      END
+    ) AS page_type,
+
+    -- Page Category Logic (Paid vs Organic Brand Split)
+    COALESCE(
+      landing_dl_page_category,
+      CASE 
+        WHEN landing_page = '/' AND LOWER(medium) IN ('cpc', 'paidsocial', 'paid', 'ppc', 'display', 'meta', 'social_paid') THEN 'Paid Brand'
+        WHEN landing_page = '/' THEN 'Organic Brand'
+        WHEN landing_page LIKE '%/product/%' OR landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' THEN 'E-Commerce'
+        ELSE 'General Info'
+      END
+    ) AS page_category
+
+  FROM session_metrics
+)
+
+SELECT
+  event_date,
+  page_category,
+  page_type,
+  landing_page,
+  COALESCE(source, '(direct)') AS source,
+  COALESCE(medium, '(none)') AS medium,
+  COALESCE(campaign, '(not set)') AS campaign,
+  campaign_id,
+  
+  -- Raw Aggregations for Looker Studio
+  COUNT(DISTINCT session_id) AS total_sessions,
+  COUNT(DISTINCT CASE WHEN is_page_engaged THEN session_id END) AS engaged_sessions,
+  COUNT(DISTINCT CASE WHEN NOT is_page_engaged OR is_page_engaged IS NULL THEN session_id END) AS bounced_sessions,
+  
+  SUM(purchases) AS total_purchases,
+  SUM(revenue) AS total_revenue
+
+FROM page_classified_sessions
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+ORDER BY event_date DESC, total_revenue DESC;
