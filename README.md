@@ -16,11 +16,12 @@ The **Landing Page Performance & Intent Matrix** provides an executive-to-granul
 
 ---
 
-## 🧮 Looker Studio Calculated Fields
+## 🧮 Looker Studio Calculated Fields Suite
 
 ### 1. Custom Channel Grouping (Calculated Dimension)
 Add a **Calculated Field** named `Channel Grouping`:
 
+```sql
 CASE 
   WHEN REGEXP_MATCH(LOWER(medium), '^(cpc|ppc|paidsearch)$') THEN 'Paid Search'
   WHEN REGEXP_MATCH(LOWER(medium), '^(paidsocial|paid_social|meta_paid|social_paid)$') THEN 'Paid Social'
@@ -32,20 +33,21 @@ CASE
   WHEN (source IS NULL OR source = '(direct)' OR source = '(not set)') AND (medium IS NULL OR medium = '(none)' OR medium = '(not set)') THEN 'Direct'
   ELSE 'Unassigned'
 END
+```
+
 
 ### 2. Metric Calculations
 
-* **Page Engagement Rate:**
-  SUM(engaged_sessions) / SUM(total_sessions)
-
-* **Revenue Per Session:**
-  SUM(total_revenue) / SUM(total_sessions)
-
-* **Revenue Per Engaged Session:**
-  SUM(total_revenue) / SUM(engaged_sessions)
-
-* **Landing Page Conversion Rate:**
-  SUM(total_purchases) / SUM(total_sessions)
+| Calculated Field Name | Looker Studio Formula | Data Type |
+| :--- | :--- | :--- |
+| **Page Engagement Rate** | SUM(engaged_sessions) / SUM(total_sessions) | Percent |
+| **Custom Bounce Rate** | SUM(bounced_sessions) / SUM(total_sessions) | Percent |
+| **Revenue Per Session (RPS)** | SUM(total_revenue) / SUM(total_sessions) | Currency |
+| **Revenue Per Engaged Session** | SUM(total_revenue) / SUM(engaged_sessions) | Currency |
+| **Landing Page Conversion Rate** | SUM(total_purchases) / SUM(total_sessions) | Percent |
+| **Transactions Per Engaged Session** | SUM(total_purchases) / SUM(engaged_sessions) | Percent |
+| **Average Order Value (AOV)** | SUM(total_revenue) / SUM(total_purchases) | Currency |
+| **% Revenue Share (For Charts)** | SUM(total_revenue) / SUM(total_revenue) | Percent |
 
 ---
 
@@ -57,7 +59,7 @@ END
 ### 2. 30-Day Active Intent & Engagement Trend (Combo Chart)
 * **X-Axis Dimension:** `event_date`
 * **Series 1 (Bars):** `SUM(engaged_sessions)` mapped to **Left Y-Axis**.
-* **Series 2 (Line):** `Page Engagement Rate` mapped to **Right Y-Axis** (Set Right Axis Max to 1.0 / 100%).
+* **Series 2 (Line):** `Page Engagement Rate` mapped to **Right Y-Axis** *(Set Right Axis Max to 1.0 / 100%)*.
 
 ### 3. Landing Page Performance Table (Drill-Down Setup)
 * **Dimensions:**
