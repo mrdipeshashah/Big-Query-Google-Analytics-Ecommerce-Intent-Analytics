@@ -4,6 +4,9 @@ WITH base_events AS (
     event_name,
     event_timestamp,
     
+    -- Extract Device Category
+    device.category AS device_category,
+    
     -- Normalize page paths (strips trailing slashes from URLs like '/shop/' to '/shop', preserving root '/')
     COALESCE(
       IF(
@@ -35,7 +38,7 @@ WITH base_events AS (
     ecommerce.purchase_revenue
   FROM `mrdipeshashah.analytics_343520795.events_*`
   WHERE (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') IS NOT NULL
-    AND _TABLE_SUFFIX BETWEEN '20260801' AND '20260816'
+    AND _TABLE_SUFFIX BETWEEN '20260817' AND '20260818'
 ),
 
 session_landing_pages AS (
@@ -55,6 +58,7 @@ session_metrics AS (
     l.landing_dl_page_type,
     l.landing_dl_page_category,
     
+    ANY_VALUE(e.device_category) AS device_category,
     ANY_VALUE(e.source) AS source,
     ANY_VALUE(e.medium) AS medium,
     ANY_VALUE(e.campaign) AS campaign,
@@ -80,6 +84,7 @@ page_classified_sessions AS (
   SELECT
     session_id,
     landing_page,
+    device_category,
     source,
     medium,
     campaign,
@@ -118,8 +123,10 @@ SELECT
   page_category,
   page_type,
   landing_page,
+  COALESCE(device_category, 'mobile') AS device_category,
   COALESCE(source, '(direct)') AS source,
   COALESCE(medium, '(none)') AS medium,
+  CONCAT(COALESCE(source, '(direct)'), ' / ', COALESCE(medium, '(none)')) AS source_medium,
   COALESCE(campaign, '(not set)') AS campaign,
   campaign_id,
   
@@ -132,5 +139,5 @@ SELECT
   SUM(revenue) AS total_revenue
 
 FROM page_classified_sessions
-GROUP BY 1, 2, 3, 4, 5, 6, 7
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
 ORDER BY total_revenue DESC;
