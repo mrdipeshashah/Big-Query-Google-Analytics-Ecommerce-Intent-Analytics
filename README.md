@@ -2,6 +2,12 @@
 
 An end-to-end Looker Studio documentation guide designed to track, analyze, and surface user landing page intent, channel attribution, and funnel conversion performance for GA4 e-commerce platforms.
 
+### Methodology & Strategic Context
+
+* **The UA vs. GA4 Metric Pivot:** This architecture initially adopts Universal Analytics (UA) single-page bounce principles to solve GA4's native ambiguity surrounding time-on-page engagement. Rather than relying on passive timers, it evaluates traffic purely on **Session Entry $\rightarrow$ Micro-Action vs. Abandonment**.
+* **PDP Intent Focus (80% Traffic Allocation):** For e-commerce environments where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), traditional pageview bounces fail to capture true user intent. This framework measures whether a landing session produced a high-intent interaction (e.g., variant selection, gallery views, product exploration, or cart additions), even if the user ultimately navigated to and purchased a secondary product page (`PDP A` $\rightarrow$ `PDP B`).
+* **Paid Media Campaign Diagnostic:** By decoupling passive browsing from intent-driven actions, this model provides media buyers with an immediate 24–48 hour performance check on new campaign launches. A **70% vs. 20% landing-action drop-off** instantly isolates whether spend inefficiency stems from ad-to-landing disconnects versus downstream checkout friction.
+
 ---
 
 ## 📌 Dashboard Overview
