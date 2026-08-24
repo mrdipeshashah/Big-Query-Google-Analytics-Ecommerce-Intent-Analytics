@@ -4,9 +4,9 @@ An end-to-end Looker Studio documentation guide designed to track, analyze, and 
 
 ### Methodology & Strategic Context
 
-* **The UA vs. GA4 Metric Pivot:** This architecture initially adopts Universal Analytics (UA) single-page bounce principles to solve GA4's native ambiguity surrounding time-on-page engagement. Rather than relying on passive timers, it evaluates traffic purely on **Session Entry $\rightarrow$ Micro-Action vs. Abandonment**.
-* **PDP Intent Focus (80% Traffic Allocation):** For e-commerce environments where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), traditional pageview bounces fail to capture true user intent. This framework measures whether a landing session produced a high-intent interaction (e.g., variant selection, gallery views, product exploration, or cart additions), even if the user ultimately navigated to and purchased a secondary product page (`PDP A` $\rightarrow$ `PDP B`).
-* **Paid Media Campaign Diagnostic:** By decoupling passive browsing from intent-driven actions, this model provides media buyers with an immediate 24–48 hour performance check on new campaign launches. A **70% vs. 20% landing-action drop-off** instantly isolates whether spend inefficiency stems from ad-to-landing disconnects versus downstream checkout friction.
+* **The UA vs. GA4 Metric Pivot:** This architecture uses Universal Analytics (UA) single-page exit principles to solve GA4's native ambiguity around time-on-page timers. It evaluates traffic strictly on a session level: **Did the landing session advance past the initial page, or did it exit without taking a step forward?**
+* **PDP Intent & Multi-Page Funnels (80% Traffic Allocation):** For e-commerce stores where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), traditional single-page metrics miss the full picture. This model tracks whether a session initiated on a landing page produced downstream progression—capturing users who land on `PDP A`, browse through to `PDP B`, and convert.
+* **Paid Media Campaign Diagnostic:** By measuring immediate session drop-off at Step 1 of the funnel, this framework gives media buyers an instant diagnostic tool within 24–48 hours of launching a campaign. Seeing a **70% vs. 20% landing drop-off** immediately isolates whether campaign performance issues stem from poor ad-to-landing relevance versus downstream pricing or checkout friction.
 
 ---
 
