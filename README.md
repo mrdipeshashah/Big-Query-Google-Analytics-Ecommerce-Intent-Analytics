@@ -5,7 +5,7 @@ An end-to-end Looker Studio documentation guide designed to track, analyze, and 
 ### Methodology & Strategic Context
 
 * **The UA vs. GA4 Metric Pivot:** This architecture uses Universal Analytics (UA) single-page exit principles to solve GA4's native ambiguity around time-on-page timers. It evaluates traffic strictly on a session level: **Did the landing session advance into the e-commerce funnel, or did it drop off without taking action?**
-* **PDP-to-Cart Funnel Logic (80% Traffic Allocation):** For e-commerce stores where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), evaluating landing performance requires tracking transactional intent. This model measures whether a session starting on a PDP successfully converted into an **Add to Cart** or **Purchase** step—including paths where a user lands on `PDP A`, navigates to `PDP B`, and adds that second item to the cart.
+* **PDP-to-Cart Funnel Logic (80% Traffic Allocation):** For e-commerce stores where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), evaluating landing performance requires tracking transactional intent. This model measures whether a landing session successfully converted into an **Add to Cart** or **Purchase** step.
 * **Paid Media Campaign Diagnostic:** By measuring immediate session drop-off before the Add to Cart step, this framework gives media buyers an instant diagnostic tool within 24–48 hours of launching a campaign. Seeing a **70% vs. 20% landing-to-cart drop-off** immediately isolates whether campaign performance issues stem from ad-to-landing relevance versus downstream pricing or checkout friction.
 
 ---
