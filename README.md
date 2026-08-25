@@ -8,7 +8,19 @@ An end-to-end Looker Studio documentation guide designed to track, analyze, and 
 * **PDP-to-Cart Funnel Logic (80% Traffic Allocation):** For e-commerce stores where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), evaluating landing performance requires tracking transactional intent. This model measures whether a landing session successfully converted into an **Add to Cart** or **Purchase** step.
 * **Paid Media Campaign Diagnostic:** By measuring immediate session drop-off before the Add to Cart step, this framework gives media buyers an instant diagnostic tool within 24–48 hours of launching a campaign. Seeing a **70% vs. 20% landing-to-cart drop-off** immediately isolates whether campaign performance issues stem from ad-to-landing relevance versus downstream pricing or checkout friction.
 
----
+## Data Model & Metric Definitions (Page 2 - PDP Matrix)
+
+### 1. Intent-Based Bounce Rate Model
+To prevent metric inflation and maintain focus on e-commerce acquisition, **bounces are measured strictly by commerce intent**:
+* **Non-Bounced Session:** A session starting on a PDP path where `add_to_cart = 1`.
+* **Bounced Session:** A session starting on a PDP path where `add_to_cart = 0`.
+
+> **Note on Model Trade-Offs:** 
+> This is a session-level entry model designed for marketing acquisition performance. If a user lands on Product A, cross-shops, and purchases Product B, the session conversion is attributed to Product A's landing efficiency.
+
+### 2. Future Rule Adjustments (Roadmap)
+* **Compound Micro-Conversions:** If video tracking is added to PDPs, high-intent engagement can be gated using sequential conditions (e.g., `Video Watch >= 75%` **AND** `Add to Cart`).
+* **Item-Scoped Funnel Model:** A secondary model can be built using unnested hit-level arrays (`items.item_name`) to track true SKU-level cross-selling and merchandising movement.
 
 ## 📌 Dashboard Overview
 
