@@ -25,21 +25,9 @@ An end-to-end Looker Studio documentation guide designed to track, analyze, and 
 * **Compound Micro-Conversions:** If video tracking is added to PDPs, high-intent engagement can be gated using sequential conditions (e.g., `Video Watch >= 75%` **AND** `Add to Cart`).
 * **Item-Scoped Funnel Model:** A secondary model can be built using unnested hit-level arrays (`items.item_name`) to track true SKU-level cross-selling and merchandising movement.
 
-## 📌 Dashboard Overview
+## Data Studio Calculated Fields Suite
 
-The **Landing Page Performance & Intent Matrix** provides an executive-to-granular view of landing page behavior by categorizing page types, user intent, traffic channels, and device categories.
-
-* **Top Row:** Executive KPI Scorecards (Sessions, Engaged Sessions, Revenue, Rev/Eng Session)
-* **Middle Left:** Revenue Share by Category (Donut Chart)
-* **Middle Right:** Engagement & Conversion Rate by Page Type (Grouped Bar Chart)
-* **Center Row:** 30-Day Active Intent & Engagement Trend (Time-Series Combo Chart)
-* **Bottom Row:** Landing Page Performance Matrix (Table with Hierarchical Drill-Down)
-
----
-
-## 🧮 Looker Studio Calculated Fields Suite
-
-### 1. Custom Channel Grouping (Calculated Dimension)
+### 1. Custom Channel Grouping (Calculated Dimension for Page 1)
 Add a **Calculated Field** named `Channel Grouping`:
 
 ```sql
