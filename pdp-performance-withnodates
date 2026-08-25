@@ -1,0 +1,58 @@
+WITH product_metadata_lookup AS (
+  -- Level 1: Dictionary of Clean PDP URLs mapped strictly to view_item metadata
+  SELECT
+    LOWER(SPLIT((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'), '?')[OFFSET(0)]) AS clean_page_url,
+    ARRAY_AGG((SELECT price FROM UNNEST(items) WHERE price IS NOT NULL AND price > 0 LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_price,
+    ARRAY_AGG((SELECT item_category FROM UNNEST(items) WHERE item_category IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_category,
+    ARRAY_AGG((SELECT item_name FROM UNNEST(items) WHERE item_name IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_name
+  FROM `mrdipeshashah.analytics_343520795.events_*`
+  WHERE event_name = 'view_item'
+  GROUP BY 1
+),
+
+session_summary AS (
+  -- Level 2: Sessions containing at least one view_item event
+  SELECT
+    CONCAT(user_pseudo_id, (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id')) AS session_id,
+    
+    -- Extract landing/view URL specifically for view_item
+    LOWER(SPLIT(ARRAY_AGG((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)], '?')[OFFSET(0)]) AS clean_landing_url,
+    
+    -- Clean path for display
+    REGEXP_EXTRACT(ARRAY_AGG((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)], r'https?://[^/]+(/[^?#]*)') AS page_path,
+
+    -- Direct Session Metadata Fallback
+    ARRAY_AGG((SELECT price FROM UNNEST(items) WHERE price IS NOT NULL AND price > 0 LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_price,
+    ARRAY_AGG((SELECT item_category FROM UNNEST(items) WHERE item_category IS NOT NULL LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_category,
+    ARRAY_AGG((SELECT item_name FROM UNNEST(items) WHERE item_name IS NOT NULL LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_name,
+
+    MAX(CASE WHEN event_name = 'add_to_cart' THEN 1 ELSE 0 END) AS had_add_to_cart,
+    MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS had_purchase
+  FROM `mrdipeshashah.analytics_343520795.events_*`
+  GROUP BY 1
+  -- De-correlate by replacing IN (...) subquery with a HAVING clause:
+  HAVING LOGICAL_OR(event_name = 'view_item')
+)
+
+-- Level 3: Final Aggregated Output
+SELECT
+  s.page_path AS landing_page_path,
+  COALESCE(pm.pdp_item_name, s.session_direct_name, 'Unknown PDP') AS item_name,
+  COALESCE(pm.pdp_item_category, s.session_direct_category, 'Unassigned Category') AS item_category,
+  COALESCE(pm.pdp_price, s.session_direct_price) AS landing_item_price,
+  
+  CASE 
+    WHEN COALESCE(pm.pdp_price, s.session_direct_price) IS NULL THEN 'Price Unavailable'
+    WHEN COALESCE(pm.pdp_price, s.session_direct_price) < 25 THEN 'Under $25'
+    WHEN COALESCE(pm.pdp_price, s.session_direct_price) BETWEEN 25 AND 50 THEN '$25 - $50'
+    WHEN COALESCE(pm.pdp_price, s.session_direct_price) BETWEEN 50.01 AND 100 THEN '$50 - $100'
+    ELSE 'Over $100'
+  END AS price_bucket,
+  
+  COUNT(DISTINCT s.session_id) AS total_sessions,
+  COUNT(DISTINCT CASE WHEN s.had_add_to_cart = 0 THEN s.session_id END) AS bounced_sessions,
+  COUNT(DISTINCT CASE WHEN s.had_add_to_cart = 1 THEN s.session_id END) AS cart_sessions,
+  COUNT(DISTINCT CASE WHEN s.had_purchase = 1 THEN s.session_id END) AS purchase_sessions
+FROM session_summary s
+LEFT JOIN product_metadata_lookup pm ON s.clean_landing_url = pm.clean_page_url
+GROUP BY 1, 2, 3, 4, 5;
