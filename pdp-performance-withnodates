@@ -11,14 +11,17 @@ WITH product_metadata_lookup AS (
 ),
 
 session_summary AS (
-  -- Level 2: Sessions containing at least one view_item event
+  -- Level 2: Sessions starting on a PDP path with view_item engagement
   SELECT
     CONCAT(user_pseudo_id, (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id')) AS session_id,
     
-    -- Extract landing/view URL specifically for view_item
+    -- Extract Device Category (mobile, desktop, tablet)
+    ARRAY_AGG(device.category IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS device_category,
+
+    -- Capture exact FIRST page loaded in the session (Landing Page)
     LOWER(SPLIT(ARRAY_AGG((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)], '?')[OFFSET(0)]) AS clean_landing_url,
     
-    -- Clean path for display
+    -- Extract clean path for display
     REGEXP_EXTRACT(ARRAY_AGG((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)], r'https?://[^/]+(/[^?#]*)') AS page_path,
 
     -- Direct Session Metadata Fallback
@@ -30,12 +33,12 @@ session_summary AS (
     MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS had_purchase
   FROM `mrdipeshashah.analytics_343520795.events_*`
   GROUP BY 1
-  -- De-correlate by replacing IN (...) subquery with a HAVING clause:
   HAVING LOGICAL_OR(event_name = 'view_item')
 )
 
--- Level 3: Final Aggregated Output
+-- Level 3: Final Aggregated Output (All-Time / Total PDP Performance)
 SELECT
+  s.device_category,
   s.page_path AS landing_page_path,
   COALESCE(pm.pdp_item_name, s.session_direct_name, 'Unknown PDP') AS item_name,
   COALESCE(pm.pdp_item_category, s.session_direct_category, 'Unassigned Category') AS item_category,
@@ -54,5 +57,9 @@ SELECT
   COUNT(DISTINCT CASE WHEN s.had_add_to_cart = 1 THEN s.session_id END) AS cart_sessions,
   COUNT(DISTINCT CASE WHEN s.had_purchase = 1 THEN s.session_id END) AS purchase_sessions
 FROM session_summary s
-LEFT JOIN product_metadata_lookup pm ON s.clean_landing_url = pm.clean_page_url
-GROUP BY 1, 2, 3, 4, 5;
+LEFT JOIN product_metadata_lookup pm 
+  ON s.clean_landing_url = pm.clean_page_url 
+WHERE s.clean_landing_url LIKE '%/product/%' 
+   OR s.clean_landing_url LIKE '%/products/%'
+GROUP BY 1, 2, 3, 4, 5, 6
+ORDER BY total_sessions DESC;
