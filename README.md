@@ -11,9 +11,12 @@ An end-to-end Looker Studio documentation guide designed to track, analyze, and 
 ## Data Model & Metric Definitions (Full Dashboard Architecture)
 
 ### 1. Intent-Based Bounce Rate Model
-To prevent metric inflation and maintain focus on e-commerce acquisition, **bounces are measured strictly by commerce intent**:
-* **Non-Bounced Session:** A session starting on a PDP path where `add_to_cart = 1`.
-* **Bounced Session:** A session starting on a PDP path where `add_to_cart = 0`.
+* **Product Detail Pages (PDPs):**
+  * **Non-Bounced Session:** A session starting on a PDP path where `add_to_cart = 1` (Transactional Intent).
+  * **Bounced Session:** A session starting on a PDP path where `add_to_cart = 0`.
+* **Product Listing Pages (PLPs / Collections):**
+  * **Non-Bounced Session:** A session starting on a PLP path where `select_item = 1` or downstream `add_to_cart = 1` (Navigation/Discovery Intent).
+  * **Bounced Session:** A session starting on a PLP path where neither `select_item` nor `add_to_cart` occurs.
 
 > **Note on Model Trade-Offs:** 
 > This is a session-level entry model designed for marketing acquisition performance. If a user lands on Product A, cross-shops, and purchases Product B, the session conversion is attributed to Product A's landing efficiency.
