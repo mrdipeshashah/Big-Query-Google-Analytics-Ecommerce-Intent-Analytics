@@ -5,7 +5,8 @@ WITH product_metadata_lookup AS (
     LOWER(SPLIT((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'), '?')[OFFSET(0)]) AS clean_page_url,
     ARRAY_AGG((SELECT price FROM UNNEST(items) WHERE price IS NOT NULL AND price > 0 LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_price,
     ARRAY_AGG((SELECT item_category FROM UNNEST(items) WHERE item_category IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_category,
-    ARRAY_AGG((SELECT item_name FROM UNNEST(items) WHERE item_name IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_name
+    ARRAY_AGG((SELECT item_name FROM UNNEST(items) WHERE item_name IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_name,
+    ARRAY_AGG((SELECT item_id FROM UNNEST(items) WHERE item_id IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_id
   FROM `mrdipeshashah.analytics_343520795.events_*`
   WHERE event_name = 'view_item'
   GROUP BY 1, 2
@@ -26,44 +27,90 @@ session_summary AS (
     -- Extract clean path for display
     REGEXP_EXTRACT(ARRAY_AGG((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)], r'https?://[^/]+(/[^?#]*)') AS page_path,
 
-    -- Direct Session Metadata Fallback
+    -- Direct Session Metadata Fallback & SKU Extraction
     ARRAY_AGG((SELECT price FROM UNNEST(items) WHERE price IS NOT NULL AND price > 0 LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_price,
     ARRAY_AGG((SELECT item_category FROM UNNEST(items) WHERE item_category IS NOT NULL LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_category,
     ARRAY_AGG((SELECT item_name FROM UNNEST(items) WHERE item_name IS NOT NULL LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_name,
+    ARRAY_AGG((SELECT item_id FROM UNNEST(items) WHERE item_id IS NOT NULL LIMIT 1) IGNORE NULLS ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS session_direct_id,
 
-    MAX(CASE WHEN event_name = 'add_to_cart' THEN 1 ELSE 0 END) AS had_add_to_cart,
-    MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS had_purchase
+    -- Capture ALL event arrays to perform hit-level SKU matching
+    ARRAY_AGG(STRUCT(event_name, items)) AS session_events
   FROM `mrdipeshashah.analytics_343520795.events_*`
   GROUP BY 1, 2
   HAVING LOGICAL_OR(event_name = 'view_item')
+),
+
+sku_matched_summary AS (
+  -- Level 3: Match landing SKU against add_to_cart and purchase arrays
+  SELECT
+    s.date,
+    s.session_id,
+    s.device_category,
+    s.clean_landing_url,
+    s.page_path,
+    COALESCE(pm.pdp_item_name, s.session_direct_name, 'Unknown PDP') AS item_name,
+    COALESCE(pm.pdp_item_category, s.session_direct_category, 'Unassigned Category') AS item_category,
+    COALESCE(pm.pdp_price, s.session_direct_price) AS landing_item_price,
+    COALESCE(pm.pdp_item_id, s.session_direct_id) AS target_item_id,
+    COALESCE(pm.pdp_item_name, s.session_direct_name) AS target_item_name,
+
+    -- SKU-MATCHED ADD TO CART: Evaluates if the LANDING product specifically was added to cart
+    MAX(
+      CASE 
+        WHEN e.event_name = 'add_to_cart' 
+         AND EXISTS (
+           SELECT 1 FROM UNNEST(e.items) i 
+           WHERE (i.item_id IS NOT NULL AND i.item_id = COALESCE(pm.pdp_item_id, s.session_direct_id))
+              OR (i.item_name IS NOT NULL AND i.item_name = COALESCE(pm.pdp_item_name, s.session_direct_name))
+         ) THEN 1 
+        ELSE 0 
+      END
+    ) AS had_sku_add_to_cart,
+
+    -- SKU-MATCHED PURCHASE: Evaluates if the LANDING product specifically was purchased
+    MAX(
+      CASE 
+        WHEN e.event_name = 'purchase' 
+         AND EXISTS (
+           SELECT 1 FROM UNNEST(e.items) i 
+           WHERE (i.item_id IS NOT NULL AND i.item_id = COALESCE(pm.pdp_item_id, s.session_direct_id))
+              OR (i.item_name IS NOT NULL AND i.item_name = COALESCE(pm.pdp_item_name, s.session_direct_name))
+         ) THEN 1 
+        ELSE 0 
+      END
+    ) AS had_sku_purchase
+
+  FROM session_summary s
+  LEFT JOIN product_metadata_lookup pm 
+    ON s.clean_landing_url = pm.clean_page_url 
+   AND s.date = pm.date
+  LEFT JOIN UNNEST(s.session_events) e
+  WHERE s.clean_landing_url LIKE '%/product/%' 
+     OR s.clean_landing_url LIKE '%/products/%'
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 )
 
--- Level 3: Final Aggregated Output (Strict PDP Landings Only)
+-- Level 4: Final Aggregated Output (Strict PDP SKU Matching)
 SELECT
-  s.date,
-  s.device_category,
-  s.page_path AS landing_page_path,
-  COALESCE(pm.pdp_item_name, s.session_direct_name, 'Unknown PDP') AS item_name,
-  COALESCE(pm.pdp_item_category, s.session_direct_category, 'Unassigned Category') AS item_category,
-  COALESCE(pm.pdp_price, s.session_direct_price) AS landing_item_price,
+  date,
+  device_category,
+  page_path AS landing_page_path,
+  item_name,
+  item_category,
+  landing_item_price,
   
   CASE 
-    WHEN COALESCE(pm.pdp_price, s.session_direct_price) IS NULL THEN 'Price Unavailable'
-    WHEN COALESCE(pm.pdp_price, s.session_direct_price) < 25 THEN 'Under $25'
-    WHEN COALESCE(pm.pdp_price, s.session_direct_price) BETWEEN 25 AND 50 THEN '$25 - $50'
-    WHEN COALESCE(pm.pdp_price, s.session_direct_price) BETWEEN 50.01 AND 100 THEN '$50 - $100'
+    WHEN landing_item_price IS NULL THEN 'Price Unavailable'
+    WHEN landing_item_price < 25 THEN 'Under $25'
+    WHEN landing_item_price BETWEEN 25 AND 50 THEN '$25 - $50'
+    WHEN landing_item_price BETWEEN 50.01 AND 100 THEN '$50 - $100'
     ELSE 'Over $100'
   END AS price_bucket,
   
-  COUNT(DISTINCT s.session_id) AS total_sessions,
-  COUNT(DISTINCT CASE WHEN s.had_add_to_cart = 0 THEN s.session_id END) AS bounced_sessions,
-  COUNT(DISTINCT CASE WHEN s.had_add_to_cart = 1 THEN s.session_id END) AS cart_sessions,
-  COUNT(DISTINCT CASE WHEN s.had_purchase = 1 THEN s.session_id END) AS purchase_sessions
-FROM session_summary s
-LEFT JOIN product_metadata_lookup pm 
-  ON s.clean_landing_url = pm.clean_page_url 
- AND s.date = pm.date
-WHERE s.clean_landing_url LIKE '%/product/%' 
-   OR s.clean_landing_url LIKE '%/products/%'
+  COUNT(DISTINCT session_id) AS total_sessions,
+  COUNT(DISTINCT CASE WHEN had_sku_add_to_cart = 0 THEN session_id END) AS bounced_sessions,
+  COUNT(DISTINCT CASE WHEN had_sku_add_to_cart = 1 THEN session_id END) AS cart_sessions,
+  COUNT(DISTINCT CASE WHEN had_sku_purchase = 1 THEN session_id END) AS purchase_sessions
+FROM sku_matched_summary
 GROUP BY 1, 2, 3, 4, 5, 6, 7
-ORDER BY s.date DESC, total_sessions DESC;
+ORDER BY date DESC, total_sessions DESC;
