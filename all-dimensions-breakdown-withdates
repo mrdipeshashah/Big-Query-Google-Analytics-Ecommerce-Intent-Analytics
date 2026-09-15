@@ -69,13 +69,12 @@ session_metrics AS (
     ANY_VALUE(e.campaign) AS campaign,
     ANY_VALUE(e.campaign_id) AS campaign_id,
     
-    -- Actions fired ON THE LANDING PAGE itself (used for Page Type classification)
+    -- Actions fired ON THE LANDING PAGE itself (used strictly for Page Type classification)
     LOGICAL_OR(e.event_name = 'select_item' AND e.event_page_path = l.landing_page) AS had_select_item_on_landing,
     LOGICAL_OR(e.event_name IN ('add_to_cart', 'add_to_wishlist') AND e.event_page_path = l.landing_page) AS had_pdp_action_on_landing,
     LOGICAL_OR(e.event_name IN ('begin_checkout', 'purchase') AND e.event_page_path = l.landing_page) AS had_checkout_action_on_landing,
     
-    -- UPDATED: Macro Session Engagement flag (ANYWHERE in the session)
-    -- Counts as engaged if user took any commercial intent action on any page during the session
+    -- Macro Session Engagement flag (ANYWHERE in the session)
     LOGICAL_OR(e.event_name IN ('select_item', 'add_to_cart', 'add_to_wishlist', 'begin_checkout', 'purchase')) AS is_page_engaged,
     
     COUNTIF(e.event_name = 'purchase') AS purchases,
@@ -100,26 +99,26 @@ page_classified_sessions AS (
     purchases,
     revenue,
     
-    -- Page Type Logic (Preserves classification based on entry URL structure & landing actions)
+    -- Page Type Logic
     COALESCE(
       landing_dl_page_type,
       CASE 
         WHEN landing_page LIKE '%/product/%' OR had_pdp_action_on_landing THEN 'PDP (Product Page)'
-        WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
+        WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR landing_page LIKE '%/collections/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
         WHEN landing_page LIKE '%/checkout%' OR landing_page LIKE '%/cart%' OR had_checkout_action_on_landing THEN 'Checkout / Cart'
         WHEN landing_page = '/' THEN 'Homepage'
         ELSE 'Other / Info Page'
       END
     ) AS page_type,
 
-    -- Page Category Logic (Paid vs Organic Brand Split)
+    -- UPDATED: Granular Page Category Logic matching original product taxonomy
     COALESCE(
       landing_dl_page_category,
       CASE 
-        WHEN landing_page = '/' AND LOWER(medium) IN ('cpc', 'paidsocial', 'paid', 'ppc', 'display', 'meta', 'social_paid') THEN 'Paid Brand'
-        WHEN landing_page = '/' THEN 'Organic Brand'
-        WHEN landing_page LIKE '%/product/%' OR landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' THEN 'E-Commerce'
-        ELSE 'General Info'
+        WHEN landing_page LIKE '%/product/%' THEN 'City Posters'
+        WHEN landing_page LIKE '%/collections/%' OR landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' THEN 'Collection'
+        WHEN landing_page = '/' THEN 'Home'
+        ELSE 'Information'
       END
     ) AS page_category
 
