@@ -77,6 +77,29 @@ END
 | **Page 2** | PDP SKU Conversion Rate | `SUM(purchase_sessions) / SUM(total_sessions)` | Percent |
 | **Page 2** | Cart-to-Purchase Abandonment Rate | `(SUM(cart_sessions) - SUM(purchase_sessions)) / SUM(cart_sessions)` | Percent |
 | **Page 2** | Cart-to-Purchase Conversion Rate | `SUM(purchase_sessions) / SUM(cart_sessions)` | Percent |
+| **Page 4** | Cross-Sell Revenue | `CASE WHEN purchase_behavior_type IN ('Product Cross-Sell', 'Gateway Entry Purchase') THEN attributed_revenue ELSE 0 END` | Currency |
+| **Page 4** | Gateway Cross-Sell Rate | `SUM(Cross-Sell Revenue) / SUM(attributed_revenue)` | Percent |
+
+## 2. Metric Calculations
+
+| Page Scope | GitHub Repo | Calculated Field Name | Looker Studio Formula | Data Type |
+| :--- | :--- | :--- | :--- | :--- |
+| **Page 1** |1.1| Page Engagement Rate | `SUM(engaged_sessions) / SUM(total_sessions)` | Percent |
+| **Page 1** | | Custom Bounce Rate | `SUM(bounced_sessions) / SUM(total_sessions)` | Percent |
+| **Page 1** | | Revenue Per Session (RPS) | `SUM(total_revenue) / SUM(total_sessions)` | Currency |
+| **Page 1** | | Revenue Per Engaged Session | `SUM(total_revenue) / SUM(engaged_sessions)` | Currency |
+| **Page 1** | | Conversion Rate | `SUM(total_purchases) / SUM(total_sessions)` | Percent |
+| **Page 1** | | Transactions Per Engaged Session | `SUM(total_purchases) / SUM(engaged_sessions)` | Percent |
+| **Page 1** | | Average Order Value (AOV) | `SUM(total_revenue) / SUM(total_purchases)` | Currency |
+| **Page 1** | | % Revenue Share (For Charts) | `SUM(total_revenue) / SUM(total_revenue)` | Percent |
+| **Page 2** | | PDP Custom Bounce Rate | `SUM(bounced_sessions) / SUM(total_sessions)` | Percent |
+| **Page 2** | | PDP Cart Addition Rate | `SUM(cart_sessions) / SUM(total_sessions)` | Percent |
+| **Page 2** | | PDP SKU Conversion Rate | `SUM(purchase_sessions) / SUM(total_sessions)` | Percent |
+| **Page 2** | | Cart-to-Purchase Abandonment Rate | `(SUM(cart_sessions) - SUM(purchase_sessions)) / SUM(cart_sessions)` | Percent |
+| **Page 2** | | Cart-to-Purchase Conversion Rate | `SUM(purchase_sessions) / SUM(cart_sessions)` | Percent |
+| **Page 4** | | Cross-Sell Revenue | `CASE WHEN purchase_behavior_type IN ('Product Cross-Sell', 'Gateway Entry Purchase') THEN attributed_revenue ELSE 0 END` | Currency |
+| **Page 4** | | Gateway Cross-Sell Rate | `SUM(Cross-Sell Revenue) / SUM(attributed_revenue)` | Percent |
+
 
 ---
 
