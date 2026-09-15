@@ -7,7 +7,7 @@ WITH base_events AS (
     -- Extract Device Category
     device.category AS device_category,
     
-    -- Normalize page paths (strips trailing slashes from URLs like '/shop/' to '/shop', preserving root '/')
+    -- Normalize page paths (strips trailing slashes, preserving root '/')
     COALESCE(
       IF(
         REGEXP_EXTRACT(
@@ -38,7 +38,8 @@ WITH base_events AS (
     ecommerce.purchase_revenue
   FROM `mrdipeshashah.analytics_343520795.events_*`
   WHERE (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') IS NOT NULL
-    AND _TABLE_SUFFIX BETWEEN '20260817' AND '20260822'
+    AND _TABLE_SUFFIX BETWEEN FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)) 
+                          AND FORMAT_DATE('%Y%m%d', CURRENT_DATE())
 ),
 
 session_landing_pages AS (
@@ -69,8 +70,7 @@ session_metrics AS (
     LOGICAL_OR(e.event_name IN ('add_to_cart', 'add_to_wishlist') AND e.event_page_path = l.landing_page) AS had_pdp_action_on_landing,
     LOGICAL_OR(e.event_name IN ('begin_checkout', 'purchase') AND e.event_page_path = l.landing_page) AS had_checkout_action_on_landing,
     
-    -- UPDATED: Session-wide macro engagement flag (ANYWHERE in the session)
-    -- Counts as engaged if user took any commercial action on any page during the session
+    -- Macro Session Engagement flag (ANYWHERE in the session)
     LOGICAL_OR(e.event_name IN ('select_item', 'add_to_cart', 'add_to_wishlist', 'begin_checkout', 'purchase')) AS is_page_engaged,
     
     COUNTIF(e.event_name = 'purchase') AS purchases,
@@ -94,26 +94,26 @@ page_classified_sessions AS (
     purchases,
     revenue,
     
-    -- 1. PAGE TYPE: Prefer Data Layer value; fallback to SQL logic
+    -- Page Type Logic
     COALESCE(
       landing_dl_page_type,
       CASE 
         WHEN landing_page LIKE '%/product/%' OR had_pdp_action_on_landing THEN 'PDP (Product Page)'
-        WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
+        WHEN landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' OR landing_page LIKE '%/collections/%' OR had_select_item_on_landing THEN 'PLP (Listing Page)'
         WHEN landing_page LIKE '%/checkout%' OR landing_page LIKE '%/cart%' OR had_checkout_action_on_landing THEN 'Checkout / Cart'
         WHEN landing_page = '/' THEN 'Homepage'
         ELSE 'Other / Info Page'
       END
     ) AS page_type,
 
-    -- 2. PAGE CATEGORY: Prefer Data Layer value; fallback to Paid vs Organic Brand split logic
+    -- Granular Page Category Logic matching original product taxonomy
     COALESCE(
       landing_dl_page_category,
       CASE 
-        WHEN landing_page = '/' AND LOWER(medium) IN ('cpc', 'paidsocial', 'paid', 'ppc', 'display', 'meta', 'social_paid') THEN 'Paid Brand'
-        WHEN landing_page = '/' THEN 'Organic Brand'
-        WHEN landing_page LIKE '%/product/%' OR landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' THEN 'E-Commerce'
-        ELSE 'General Info'
+        WHEN landing_page LIKE '%/product/%' THEN 'City Posters'
+        WHEN landing_page LIKE '%/collections/%' OR landing_page LIKE '%/shop%' OR landing_page LIKE '%/category/%' THEN 'Collection'
+        WHEN landing_page = '/' THEN 'Home'
+        ELSE 'Information'
       END
     ) AS page_category
 
@@ -124,7 +124,7 @@ SELECT
   page_category,
   page_type,
   landing_page,
-  COALESCE(device_category, 'mobile') AS device_category,
+  COALESCE(device_category, 'desktop') AS device_category,
   COALESCE(source, '(direct)') AS source,
   COALESCE(medium, '(none)') AS medium,
   CONCAT(COALESCE(source, '(direct)'), ' / ', COALESCE(medium, '(none)')) AS source_medium,
