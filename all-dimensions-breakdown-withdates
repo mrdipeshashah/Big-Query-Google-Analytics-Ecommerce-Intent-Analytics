@@ -69,13 +69,14 @@ session_metrics AS (
     ANY_VALUE(e.campaign) AS campaign,
     ANY_VALUE(e.campaign_id) AS campaign_id,
     
-    -- Actions fired ON THE LANDING PAGE itself
+    -- Actions fired ON THE LANDING PAGE itself (used for Page Type classification)
     LOGICAL_OR(e.event_name = 'select_item' AND e.event_page_path = l.landing_page) AS had_select_item_on_landing,
     LOGICAL_OR(e.event_name IN ('add_to_cart', 'add_to_wishlist') AND e.event_page_path = l.landing_page) AS had_pdp_action_on_landing,
     LOGICAL_OR(e.event_name IN ('begin_checkout', 'purchase') AND e.event_page_path = l.landing_page) AS had_checkout_action_on_landing,
     
-    -- Engagement flag on landing page
-    LOGICAL_OR(e.event_name IN ('select_item', 'add_to_cart', 'add_to_wishlist', 'begin_checkout') AND e.event_page_path = l.landing_page) AS is_page_engaged,
+    -- UPDATED: Macro Session Engagement flag (ANYWHERE in the session)
+    -- Counts as engaged if user took any commercial intent action on any page during the session
+    LOGICAL_OR(e.event_name IN ('select_item', 'add_to_cart', 'add_to_wishlist', 'begin_checkout', 'purchase')) AS is_page_engaged,
     
     COUNTIF(e.event_name = 'purchase') AS purchases,
     SUM(IF(e.event_name = 'purchase', e.purchase_revenue, 0)) AS revenue
@@ -99,7 +100,7 @@ page_classified_sessions AS (
     purchases,
     revenue,
     
-    -- Page Type Logic
+    -- Page Type Logic (Preserves classification based on entry URL structure & landing actions)
     COALESCE(
       landing_dl_page_type,
       CASE 
