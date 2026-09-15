@@ -42,7 +42,7 @@ Evaluates whether a specific Product Detail Page (PDP) successfully convinced th
 
 ## Data Studio Calculated Fields Suite
 
-### 1. Custom Channel Grouping (Calculated Dimension for Page 1)
+### 1. Custom Channel Grouping (Calculated Dimension for Page 1 & Page 3)
 Add a **Calculated Field** named `Channel Grouping`:
 
 ```sql
