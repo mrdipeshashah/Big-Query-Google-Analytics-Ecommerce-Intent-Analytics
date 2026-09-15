@@ -1,0 +1,108 @@
+WITH base_events AS (
+  SELECT
+    PARSE_DATE('%Y%m%d', event_date) AS event_date,
+    CONCAT(user_pseudo_id, '_', (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id')) AS session_id,
+    event_name,
+    event_timestamp,
+    
+    -- Normalize page paths (strips trailing slashes, preserving root '/')
+    COALESCE(
+      IF(
+        REGEXP_EXTRACT(
+          (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
+          r'https?://[^/]+([^?#]*)'
+        ) = '/',
+        '/',
+        RTRIM(
+          REGEXP_EXTRACT(
+            (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'),
+            r'https?://[^/]+([^?#]*)'
+          ),
+          '/'
+        )
+      ),
+      '/'
+    ) AS event_page_path,
+    
+    -- Extract Data Layer parameters if available on landing
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_type') AS dl_page_type,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_category') AS dl_page_category,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'item_name') AS dl_item_name,
+    
+    items
+  FROM `mrdipeshashah.analytics_343520795.events_*`
+  WHERE (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') IS NOT NULL
+),
+
+session_landing_pages AS (
+  -- Extracts entry landing page and maps clean Entry Item & Category metadata
+  SELECT
+    session_id,
+    ANY_VALUE(event_date) AS event_date,
+    ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] AS entry_landing_page,
+    
+    -- Entry Item Name Mapping
+    COALESCE(
+      ARRAY_AGG(dl_item_name ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)],
+      CASE 
+        WHEN ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] = '/' THEN 'Homepage Entry'
+        WHEN ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] LIKE '%/collections/%' THEN 'Collection Page Entry'
+        WHEN ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] LIKE '%/product/%' THEN 
+          INITCAP(REGEXP_REPLACE(REGEXP_EXTRACT(ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)], r'/product/([^/]+)'), r'[-_]', ' '))
+        ELSE 'Other Entry'
+      END
+    ) AS entry_item_name,
+
+    -- Entry Item Category Mapping
+    COALESCE(
+      ARRAY_AGG(dl_page_category ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)],
+      CASE 
+        WHEN ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] LIKE '%/product/%' THEN 'City Posters'
+        WHEN ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] LIKE '%/collections/%' THEN 'Collection'
+        WHEN ARRAY_AGG(event_page_path ORDER BY event_timestamp ASC LIMIT 1)[SAFE_OFFSET(0)] = '/' THEN 'Home'
+        ELSE 'Information'
+      END
+    ) AS entry_item_category
+
+  FROM base_events
+  GROUP BY 1
+),
+
+session_purchases AS (
+  -- Extracts every item bought in purchase events
+  SELECT
+    session_id,
+    item.item_id AS purchased_item_id,
+    INITCAP(item.item_name) AS purchased_item_name,
+    COALESCE(INITCAP(item.item_category), 'City Posters') AS purchased_item_category,
+    item.price AS item_price,
+    item.quantity AS item_quantity,
+    (item.price * item.quantity) AS item_revenue
+  FROM base_events,
+  UNNEST(items) AS item
+  WHERE event_name = 'purchase'
+)
+
+SELECT
+  l.event_date,
+  l.entry_landing_page,
+  l.entry_item_name,
+  l.entry_item_category,
+  p.purchased_item_name,
+  p.purchased_item_category,
+  
+  -- Precise behavior classification based on matching clean names vs paths
+  CASE 
+    WHEN LOWER(l.entry_item_name) = LOWER(p.purchased_item_name) THEN 'Direct SKU Purchase'
+    WHEN l.entry_landing_page LIKE '%/product/%' THEN 'Product Cross-Sell'
+    ELSE 'Gateway Entry Purchase'
+  END AS purchase_behavior_type,
+
+  COUNT(DISTINCT l.session_id) AS converting_sessions,
+  SUM(p.item_quantity) AS units_sold,
+  SUM(p.item_revenue) AS attributed_revenue
+
+FROM session_landing_pages l
+INNER JOIN session_purchases p ON l.session_id = p.session_id
+GROUP BY 1, 2, 3, 4, 5, 6, 7
+ORDER BY event_date DESC, attributed_revenue DESC;
