@@ -38,7 +38,7 @@ WITH base_events AS (
     session_traffic_source_last_click.manual_campaign.campaign_id AS campaign_id,
     
     ecommerce.purchase_revenue
-  FROM `mrdipeshashah.analytics_343520795.events_*`
+  FROM `enter.tablename_123456.events_*`
   WHERE (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') IS NOT NULL
     AND _TABLE_SUFFIX BETWEEN FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)) 
                           AND FORMAT_DATE('%Y%m%d', CURRENT_DATE())
