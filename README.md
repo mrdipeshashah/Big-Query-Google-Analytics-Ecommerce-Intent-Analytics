@@ -123,29 +123,3 @@ END
 | **Page 4** | | Cross-Sell Revenue | `CASE WHEN purchase_behavior_type IN ('Product Cross-Sell', 'Gateway Entry Purchase') THEN attributed_revenue ELSE 0 END` | Currency |
 | **Page 4** | | Gateway Cross-Sell Rate | `SUM(Cross-Sell Revenue) / SUM(attributed_revenue)` | Percent |
 
-
----
-
-## 📊 Looker Studio Chart Configuration
-
-### 1. Executive KPI Scorecards
-* **Metrics:** `Total Sessions`, `Page Engagement Rate`, `Total Revenue`, `Revenue Per Engaged Session`.
-
-### 2. 30-Day Active Intent & Engagement Trend (Combo Chart)
-* **X-Axis Dimension:** `event_date`
-* **Series 1 (Bars):** `SUM(engaged_sessions)` mapped to **Left Y-Axis**.
-* **Series 2 (Line):** `Page Engagement Rate` mapped to **Right Y-Axis** *(Set Right Axis Max to 1.0 / 100%)*.
-
-### 3. Landing Page Performance Table (Drill-Down Setup)
-* **Dimensions:**
-  1. `Page Type` (Top Level)
-  2. `Landing Page` (Sub-Level)
-* **Drill-Down Switch:** Enabled.
-* **Default Drill-Down Level:** Set to `Page Type`.
-* **Chart Header:** Set to **Always Show** to display drill-down arrows.
-
-### 4. Interactive Filters Controls
-Add the following Drop-down controls at the top of the report:
-* `Channel Grouping`
-* `Source / Medium`
-* `Device Category`
