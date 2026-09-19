@@ -7,7 +7,7 @@ WITH product_metadata_lookup AS (
     ARRAY_AGG((SELECT item_category FROM UNNEST(items) WHERE item_category IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_category,
     ARRAY_AGG((SELECT item_name FROM UNNEST(items) WHERE item_name IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_name,
     ARRAY_AGG((SELECT item_id FROM UNNEST(items) WHERE item_id IS NOT NULL LIMIT 1) IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS pdp_item_id
-  FROM `mrdipeshashah.analytics_343520795.events_*`
+  FROM `enter.tablename_123456.events_*`
   WHERE event_name = 'view_item'
   GROUP BY 1, 2
 ),
@@ -35,7 +35,7 @@ session_summary AS (
 
     -- Capture ALL event arrays to perform hit-level SKU matching
     ARRAY_AGG(STRUCT(event_name, items)) AS session_events
-  FROM `mrdipeshashah.analytics_343520795.events_*`
+  FROM `enter.tablename_123456.events_*`
   GROUP BY 1, 2
   HAVING LOGICAL_OR(event_name = 'view_item')
 ),
