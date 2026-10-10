@@ -1,8 +1,12 @@
-# Landing Page Performance & Intent Matrix Dashboard
+# OVERVIEW
 
-An end-to-end Looker Studio documentation guide designed to track, analyze, and surface user landing page intent, channel attribution, and funnel conversion performance for GA4 e-commerce platforms.
+This repository contains Big Query code using Google Analytics raw data tracking, analyzing, and surfacing user landing page intent, channel attribution, and funnel conversion performance.
 
-### Methodology & Strategic Context
+# DASHBOARD
+
+The data studio dashboard (https://datastudio.google.com/reporting/1c2a4124-67bf-495c-b2cc-a54a7768dab1) brings many of the insights to life.
+
+# METHODOLOGY & STRATEGIC CONTEXT
 
 * **The UA vs. GA4 Metric Pivot:** This architecture uses Universal Analytics (UA) single-page exit principles to solve GA4's native ambiguity around time-on-page timers. It evaluates traffic strictly on a session level: **Did the landing session advance into the e-commerce funnel, or did it drop off without taking action?**
 * **PDP-to-Cart Funnel Logic (80% Traffic Allocation):** For e-commerce stores where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), evaluating landing performance requires tracking transactional intent. This model measures whether a landing session successfully converted into an **Add to Cart** or **Purchase** step.
@@ -52,35 +56,6 @@ Provides granular campaign, source/medium, and channel performance breakdowns fo
 | **Land Product A $\rightarrow$ Buy Product Y** | 100% Bounce \| High Conversion \| High RPS | 100% PDP Bounce \| 0% SKU Conversion | `Product Cross-Sell` | **Gateway Pass-Through:** Traffic quality is strong, but Product A has friction (price/sizing) driving users to alternative SKUs. |
 | **Land Homepage $\rightarrow$ Buy Product Y** | N/A (Non-PDP Entry) | N/A (Non-PDP Entry) | `Gateway Entry Purchase` | **Discovery Gateway:** Homepage/Collection acts as a primary entry funnel driving high multi-product discovery. |
 | **Land Product A $\rightarrow$ Exit Site** | 100% Bounce \| 0% Conversion \| £0 RPS | 100% PDP Bounce \| 0% SKU Conversion | N/A (No Purchase) | **Total Drop-off:** Poor ad targeting or weak landing page value proposition. |
-
----
-
-### Strategic Diagnostic Framework
-
-| User Journey Scenario | Page 1 View (Acquisition) | Page 2 View (Merchandising) | Business Insight |
-| :--- | :--- | :--- | :--- |
-| **Land Product A $\rightarrow$ Buy Product A** | 0% Bounce \| 100% Conversion Rate | 0% PDP Bounce \| 100% PDP SKU Conversion Rate | **Direct Conversion:** Campaign targeting and page merchandising are perfectly aligned. |
-| **Land Product A $\rightarrow$ Buy Product Y** | 100% Bounce \| 100% Conversion Rate \| High RPS | 100% PDP Bounce \| 0% PDP SKU Conversion Rate | **Gateway Pass-Through:** Traffic quality is great, but Product A has on-page friction (price/sizing/stock) driving users to alternatives. |
-| **Land Product A $\rightarrow$ Exit Site** | 100% Bounce \| 0% Conversion Rate \| £0 RPS | 100% PDP Bounce \| 0% PDP SKU Conversion Rate | **Total Drop-off:** Poor ad targeting or weak landing page value proposition. |
-
-## Data Studio Calculated Fields Suite
-
-### 1. Custom Channel Grouping (Calculated Dimension for Page 1 & Page 3)
-Add a **Calculated Field** named `Channel Grouping`:
-
-```sql
-CASE 
-  WHEN REGEXP_MATCH(LOWER(medium), '^(cpc|ppc|paidsearch)$') THEN 'Paid Search'
-  WHEN REGEXP_MATCH(LOWER(medium), '^(paidsocial|paid_social|meta_paid|social_paid)$') THEN 'Paid Social'
-  WHEN LOWER(medium) = 'organic' THEN 'Organic Search'
-  WHEN REGEXP_MATCH(LOWER(medium), '^(organicsocial|organic_social|social)$') THEN 'Organic Social'
-  WHEN LOWER(medium) = 'referral' THEN 'Referral'
-  WHEN REGEXP_MATCH(LOWER(medium), '^(email|newsletter)$') THEN 'Email'
-  WHEN LOWER(medium) = 'affiliate' THEN 'Affiliates'
-  WHEN (source IS NULL OR source = '(direct)' OR source = '(not set)') AND (medium IS NULL OR medium = '(none)' OR medium = '(not set)') THEN 'Direct'
-  ELSE 'Unassigned'
-END
-```
 
 
 ### 2. Metric Calculations
