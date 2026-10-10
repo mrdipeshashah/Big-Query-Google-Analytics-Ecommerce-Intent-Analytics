@@ -8,10 +8,12 @@ The data studio dashboard (https://datastudio.google.com/reporting/1c2a4124-67bf
 
 # METHODOLOGY & STRATEGIC CONTEXT
 
-* **The UA vs. GA4 Metric Pivot:** This architecture uses Universal Analytics (UA) single-page exit principles to solve GA4's native ambiguity around time-on-page timers. It evaluates traffic strictly on a session level: **Did the landing session advance into the e-commerce funnel, or did it drop off without taking action?**
-* **PDP-to-Cart Funnel Logic (80% Traffic Allocation):** For e-commerce stores where ~80% of acquisition traffic lands directly on Product Detail Pages (PDPs), evaluating landing performance requires tracking transactional intent. This model measures whether a landing session successfully converted into an **Add to Cart** or **Purchase** step.
-* **Paid Media Campaign Diagnostic:** By measuring immediate session drop-off before the Add to Cart step, this framework gives media buyers an instant diagnostic tool within 24–48 hours of launching a campaign. Seeing a **70% vs. 20% landing-to-cart drop-off** immediately isolates whether campaign performance issues stem from ad-to-landing relevance versus downstream pricing or checkout friction.
+The core focus of this model is measuring whether a session successfully advances from its landing page into high-intent commercial actions—specifically select_item, add_to_cart, begin_checkout, or purchase.
+
+* **The UA vs. GA4 Metric Pivot:** Evaluates traffic strictly at the session level: **Did the landing session advance into the e-commerce funnel, or did it drop off without taking action?**
+* **PDP-to-Cart Funnel Logic:** For e-commerce stores where traffic lands directly on Product Detail Pages (PDPs), evaluating landing performance requires tracking transactional intent. 
 * **Cross-Sell & Gateway Flow Mapping:** Evaluates non-linear user journeys where landing paths differ from converted SKUs. By tracking cross-sell behavior through custom Sankey flows and behavior classifications, it highlights top-performing gateway entry points and product affinity networks.
+* **Paid Media Campaign Diagnostic:** Measuring session drop-off at the PLP or PDP page, this framework provides an instant diagnostic tool to understand campaign performance. It helps isolates whether campaign performance issues stem from ad-to-landing relevance versus downstream pricing or checkout friction.
 
 ## DATA MODEL & METRIC DEFINITION
 
