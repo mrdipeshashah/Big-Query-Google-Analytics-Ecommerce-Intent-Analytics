@@ -48,7 +48,7 @@ Evaluates downstream SKU migration patterns from entry points to purchased SKUs.
 ### PAGE 4: PAID MEDIA APPENDIX
 Provides granular campaign, source/medium, and channel performance breakdowns for paid acquisition channels.
 
-### Strategic Diagnostic Framework
+## STRATEGIC DIAGNOSTIC FRAMEWORK
 
 | User Journey Scenario | Page 1 View (Acquisition) | Page 2 View (Merchandising) | Page 3 View (Purchase Flow) | Business Insight |
 | :--- | :--- | :--- | :--- | :--- |
